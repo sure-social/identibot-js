@@ -1,0 +1,6 @@
+content/
+images/
+node_modules/
+ops/
+production/
+redis/

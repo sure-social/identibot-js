@@ -1,0 +1,12 @@
+#!/bin/bash
+
+version: '3.5'
+
+services:
+
+    webservice:
+        container_name: identibot
+        build: ./
+        image: identibot
+        volumes:
+             - ./volume:/app/volume
