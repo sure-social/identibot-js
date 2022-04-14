@@ -66,7 +66,36 @@ class Identibot {
     }
 
     //----------------------------------------------------------------//
-    async identify ( message, magic ) {
+    async identify ( message, addressOrMagic ) {
+
+        if ( !addressOrMagic ) {
+            message.reply ( `I need an identity address or a magic number to identify you.` );
+            return;
+        }
+
+        const components = addressOrMagic.split ( '::' );
+
+        const community     = env.COMMUNITY_NAME;
+        const username      = message.member.user.tag;
+        let magic           = '';
+
+        if ( components.length === 3 ) {
+
+            if ( community !== components [ 0 ]) {
+                message.reply ( `That community name did't match what I was expecting. I should be '${ community }'.` );
+                return;
+            }
+
+            if ( username !== components [ 1 ]) {
+                message.reply ( `That username did't match what I was expecting. I should be '${ username }'.` );
+                return;
+            }
+
+            magic = components [ 2 ];
+        }
+        else if ( components.length === 1 ) {
+            magic = components [ 0 ];
+        }
 
         if ( !magic ) {
             message.reply ( 'I need your magic number to find your identity. Please provide it when you call this command.' );
@@ -117,16 +146,23 @@ class Identibot {
 
         const content       = message.content;
         const tokens        = content.split ( ' ' );
-        const prefix        = tokens.shift ().toLowerCase ();
+        const prefix        = ( tokens.shift () || '' ).toLowerCase ();
         
+        console.log ( tokens );
+
         if ( prefix != BOT_PREFIX ) return;
 
-        const command       = tokens.shift ().toLowerCase ();
+        const command       = ( tokens.shift () || '' ).toLowerCase ();
+
+        if ( !command ) {
+            message.reply ( `I need a command, an identity address or a magic number.` );
+            return;
+        }
 
         switch ( command ) {
 
             case BOT_COMMANDS.IDENTIFY: {
-                await this.identify ( message, ...tokens );
+                await this.identify ( message, tokens [ 0 ]);
                 break;
             }
 
