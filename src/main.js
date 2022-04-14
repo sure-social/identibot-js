@@ -139,18 +139,16 @@ class Identibot {
         if ( message.author.bot ) return;
         if ( !message.content.length ) return;
 
+        const content       = message.content;
+        const tokens        = content.split ( ' ' );
+        const prefix        = ( tokens.shift () || '' ).toLowerCase ();
+
+        if ( prefix != BOT_PREFIX ) return;
+
         if ( message.channel.id !== env.CHANNEL_ID ) {
             message.reply ( `sorry, I am not accepting commands in this channel.` );
             return;
         }
-
-        const content       = message.content;
-        const tokens        = content.split ( ' ' );
-        const prefix        = ( tokens.shift () || '' ).toLowerCase ();
-        
-        console.log ( tokens );
-
-        if ( prefix != BOT_PREFIX ) return;
 
         const command       = ( tokens.shift () || '' ).toLowerCase ();
 
