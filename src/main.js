@@ -1,4 +1,4 @@
-/* eslint-disable no-whitespace-before-property */
+// Copyright (c) 2022 Fall Guy LLC All Rights Reserved.
 
 process.on ( 'uncaughtException', function ( err ) {
     console.log ( err );

@@ -1,4 +1,4 @@
-/* eslint-disable no-whitespace-before-property */
+// Copyright (c) 2022 Fall Guy LLC All Rights Reserved.
 
 import { assert }                   from 'assert';
 import _                            from 'lodash';

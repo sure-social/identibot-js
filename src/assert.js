@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Fall Guy LLC All Rights Reserved.
+// Copyright (c) 2022 Fall Guy LLC All Rights Reserved.
 
 //----------------------------------------------------------------//
 export function assert ( condition, error ) {
