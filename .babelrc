@@ -11,7 +11,10 @@
                     "./src"
                 ],
                 "alias": {
-                    "config": "./volume/config"
+                    "fgc": "./src/packages/fgc",
+                    "fgc-package": "./src/packages/fgc-common-js-src",
+                    "sure": "./src/packages/sure",
+                    "sure-package": "./src/packages/sure-common-js"
                 }
             }
         ]

@@ -10,8 +10,8 @@ function getEnv ( name, fallback ) {
     return value;
 }
 
-export const BOT_TOKEN                          = getEnv ( 'BOT_TOKEN' );
-export const CHANNEL_ID                         = getEnv ( 'CHANNEL_ID' );
-export const COMMUNITY_NAME                     = getEnv ( 'COMMUNITY_NAME' );
-export const SERVICE_URL                        = getEnv ( 'SERVICE_URL' );
-export const SQLITE_FILE                        = getEnv ( 'SQLITE_FILE', './volume/sqlite.db' );
+export const BOT_TOKEN          = getEnv ( 'BOT_TOKEN' );
+export const CHANNEL_ID         = getEnv ( 'CHANNEL_ID' );
+export const CLIENT_ID          = getEnv ( 'CLIENT_ID' );
+export const SERVICE_URL        = getEnv ( 'SERVICE_URL' );
+export const SQLITE_FILE        = getEnv ( 'SQLITE_FILE', './volume/sqlite.db' );

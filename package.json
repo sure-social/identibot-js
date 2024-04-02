@@ -4,40 +4,28 @@
   "private": true,
   "dependencies": {
     "babel-polyfill": "^6.26.0",
-    "better-sqlite3": "^7.5.0",
-    "bluebird": "^3.7.2",
-    "cross-fetch": "^3.1.4",
-    "discord.js": "^12.5.3",
+    "better-sqlite3": "^9.4.3",
+    "cross-fetch": "^3.1.5",
+    "discord.js": "^14.14.1",
     "dotenv": "^6.2.0",
-    "express": "^4.17.0",
-    "fs": "0.0.1-security",
-    "jest": "^27.0.0-next.2",
-    "jszip": "^3.5.0",
-    "multer-sharp": "^0.6.2",
-    "mz": "^2.7.0",
-    "node-jsencrypt": "^1.0.0",
-    "nodemailer": "^6.4.2",
-    "npm": "^6.9.0",
-    "pg": "^7.18.1",
-    "sharp": "^0.27.0",
-    "supertest": "^6.1.1",
-    "url": "^0.11.0"
+    "libsodium": "0.7.9",
+    "libsodium-wrappers": "0.7.9",
+    "npm": "^6.14.13",
+    "url": "^0.11.3"
   },
   "scripts": {
-    "build": "babel src/main.js -d dist",
+    "register": "babel-node -r dotenv/config src/register.js dotenv_config_path=./volume/.env",
     "start": "nodemon --exec babel-node -r dotenv/config src/main.js dotenv_config_path=./volume/.env",
-    "prod": "babel-node -r dotenv/config src/main.js dotenv_config_path=./volume/.env",
-    "test": "jest --setupFiles dotenv/config --runInBand",
-    "test:watch": "jest --watch --setupFiles dotenv/config --runInBand"
+    "prod": "babel-node -r dotenv/config src/main.js dotenv_config_path=./volume/.env"
   },
   "devDependencies": {
-    "@babel/cli": "^7.8.3",
-    "@babel/core": "^7.8.3",
-    "@babel/node": "^7.8.3",
+    "@babel/cli": "^7.14.5",
+    "@babel/core": "^7.14.5",
+    "@babel/node": "^7.14.5",
     "@babel/plugin-proposal-decorators": "^7.16.4",
-    "@babel/preset-env": "^7.8.3",
-    "babel-plugin-module-resolver": "^4.0.0",
-    "nodemon": "^2.0.2"
+    "@babel/preset-env": "^7.14.5",
+    "babel-plugin-module-resolver": "^4.1.0",
+    "nodemon": "^2.0.7"
   },
   "jest": {}
 }

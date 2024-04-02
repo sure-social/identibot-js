@@ -1,6 +1,6 @@
-content/
-images/
+.git/
+.gitignore/
+Dockerfile
 node_modules/
-ops/
-production/
-redis/
+README.md
+volume/

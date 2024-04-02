@@ -12,21 +12,20 @@ import fs                           from 'fs';
 import fetch                        from 'cross-fetch';
 import URL                          from 'url';
 import _                            from 'lodash';
+import * as sure                    from 'sure';
 
+const db = new sqlite3 ( env.SQLITE_FILE );
 
-export const BOT_PREFIX = 'identibot,'
-
-export const BOT_COMMANDS = {
-    IDENTIFY:               'identify',
-    FORGET:                 'forget',
-    HELP:                   'help',
-}
-
-const HELP_TEXT = `
-    ${ BOT_PREFIX } ${ BOT_COMMANDS.IDENTIFY } - look up your Gamercert identity and update roles.
-    ${ BOT_PREFIX } ${ BOT_COMMANDS.FORGET } - forget your Gamercert identity and remove roles.
-    ${ BOT_PREFIX } ${ BOT_COMMANDS.HELP } - display again this very message.
-`
+db.prepare (`
+    CREATE TABLE IF NOT EXISTS members (
+        id              INTEGER         PRIMARY KEY,
+        user_id         TEXT            NOT NULL,
+        guild_id        TEXT            NOT NULL,
+        tag             TEXT            NOT NULL DEFAULT '',
+        fingerprint     TEXT            NOT NULL DEFAULT '',
+        UNIQUE ( user_id, guild_id )
+    )
+`).run ();
 
 const ROLE_NAMES = {
     PRETEND:            'pretend',
@@ -37,177 +36,212 @@ const ROLE_NAMES = {
 
 const ALL_ROLES = [ ...Object.values ( ROLE_NAMES )];
 
+const client = new Discord.Client ({ intents: [
+    Discord.GatewayIntentBits.Guilds,
+    Discord.GatewayIntentBits.GuildMessages,
+    Discord.GatewayIntentBits.MessageContent,
+]});
+
+client.once ( Discord.Events.ClientReady, ( client ) => {
+    console.log ( `Logged in as ${ client.user.tag }!` );
+});
+
+client.login ( env.BOT_TOKEN );
+
+client.on ( Discord.Events.InteractionCreate, async ( interaction ) => {
+    if ( !interaction.isChatInputCommand ()) return;
+
+    switch ( interaction.commandName ) {
+
+        case 'identify': {
+            await identify ( interaction );
+            break;
+        }
+
+        case 'forget': {
+            await setRoles ( interaction.member );
+            interaction.reply ( 'OK, I removed all your SURE.social server profile roles.' );
+            break;
+        }
+
+        case 'snoop': {
+            snoop ( interaction );
+            break;
+        }
+    }
+});
+
 //----------------------------------------------------------------//
-function formatURL ( url, path, query ) {
+async function identify ( interaction ) {
 
-    url             = URL.parse ( url );
-    path            = path || '/';
+    const guildID = interaction.member.guild.id;
+    const userID = interaction.member.user.id;
 
-    url.pathname    = `${ url.path }${ path.replace ( /^\//, '' )}`;
-    url.query       = query || {};
+    const record = db.prepare ( `SELECT * FROM members WHERE guild_id IS ? AND user_id IS ? LIMIT 1` ).get ( guildID, userID );
 
-    url = URL.format ( url );
-    return url;
-}
+    const tag = interaction.options.getString ( 'tag' );
+    const components = sure.tag.toComponents ( tag )
 
-//================================================================//
-// Identibot
-//================================================================//
-class Identibot {
-
-    //----------------------------------------------------------------//
-    constructor () {
-
-        this.client = new Discord.Client ();
-        this.client.on ( 'message',     ( message ) => { this.onMessage ( message )});
-        this.client.on ( 'ready',       () => { this.onReady ()});
-    
-        this.client.login ( env.BOT_TOKEN );
+    if ( !sure.tag.isValid ( components )) {
+        interaction.reply ( `That doesn't appear to be a valid SURE tag.` );
+        return;
     }
 
-    //----------------------------------------------------------------//
-    async identify ( message, addressOrMagic ) {
+    const username = interaction.member.user.username;
 
-        if ( !addressOrMagic ) {
-            message.reply ( `I need an identity address or a magic number to identify you.` );
-            return;
-        }
+    if ( components.community !== 'discord' ) {
+        interaction.reply ( `That community name did't match what I was expecting. It should be 'discord'.` );
+        return;
+    }
 
-        const components = addressOrMagic.split ( '::' );
+    if ( components.username !== username ) {
+        interaction.reply ( `That username didn't match your gloabl Discord username. It should be '${ username }'.` );
+        return;
+    }
 
-        const community     = env.COMMUNITY_NAME;
-        const username      = message.member.user.tag;
-        let magic           = '';
+    try {
 
-        if ( components.length === 3 ) {
-
-            if ( community !== components [ 0 ]) {
-                message.reply ( `That community name did't match what I was expecting. I should be '${ community }'.` );
-                return;
-            }
-
-            if ( username !== components [ 1 ]) {
-                message.reply ( `That username did't match what I was expecting. I should be '${ username }'.` );
-                return;
-            }
-
-            magic = components [ 2 ];
-        }
-        else if ( components.length === 1 ) {
-            magic = components [ 0 ];
-        }
-
-        if ( !magic ) {
-            message.reply ( 'I need your magic number to find your identity. Please provide it when you call this command.' );
-            return;
-        }
-
-        const url = formatURL ( env.SERVICE_URL, 'oai', {
-            community:      env.COMMUNITY_NAME,
-            username:       message.member.user.tag,
-            salt:           magic,
-            fmt:            'json',
-        });
-
+        const hash = sure.tag.hash ( components );
+        const url = `${ env.SERVICE_URL }oai?hash=${ hash }`;
         const result = await ( await fetch ( url )).json ();
-        if ( !( result.oai && result.oai.aliasID )) {
-            message.reply ( 'sorry, I couldn\'t find a profile matching your Discord tag and magic number.' );
+        const identity = result.identity;
+
+        await setRoles ( interaction.member );
+
+        if ( !identity ) {
+            interaction.reply ( 'Sorry, I couldn\'t find an identity matching your SURE tag.' );
             return;
         }
 
-        const claims = result.oai.claims;
         const roles = [];
 
-        roles.push ( claims.pretend ? ROLE_NAMES.PRETEND : ROLE_NAMES.VERIFIED );
+        switch ( identity.status ) {
 
-        if (( claims.age.type === 'MINIMUM_AGE' ) && ( claims.age.value.minimumAge >= 18 )) {
-            roles.push ( ROLE_NAMES.OVER_18 );
+            case 'INVALID':
+                 interaction.reply ( 'Looks like that tag is invalid.' );
+                break;
+
+            case 'REVOKED':
+                 interaction.reply ( 'Looks like that identity was revoked.' );
+                break;
+
+            case 'PRETEND':
+                roles.push ( ROLE_NAMES.PRETEND  );
+                break;
+
+            case 'RECOURSE':
+                roles.push ( ROLE_NAMES.FULL_RECOURSE  );
+                // fall through
+
+            case 'VALID':
+                roles.push ( ROLE_NAMES.VERIFIED  );
+                if ( identity.minimumAge && ( identity.minimumAge >= 18 )) {
+                    roles.push ( ROLE_NAMES.OVER_18 );
+                }
+                break;
         }
 
-        if ( claims.recourse.type === 'FULL' ) {
-            roles.push ( ROLE_NAMES.FULL_RECOURSE );
+        if ( roles.length ) {
+            interaction.reply ( `I found your identity and added the following roles to your server profile: ${ roles.join ( ', ' )}` );
         }
+        await setRoles ( interaction.member, roles );
 
-        message.reply ( `I found your profile and am adding the following Gamercert roles: ${ roles.join ( ', ' )}` );
-
-        this.setRoles ( message.member, roles );
-    }
-
-    //----------------------------------------------------------------//
-    async onMessage ( message ) {
-
-        if ( message.author.bot ) return;
-        if ( !message.content.length ) return;
-
-        const content       = message.content;
-        const tokens        = content.split ( ' ' );
-        const prefix        = ( tokens.shift () || '' ).toLowerCase ();
-
-        if ( prefix != BOT_PREFIX ) return;
-
-        if ( message.channel.id !== env.CHANNEL_ID ) {
-            message.reply ( `sorry, I am not accepting commands in this channel.` );
-            return;
+        if ( record ) {
+            db.prepare (
+                `UPDATE members SET tag = ?, fingerprint = ? WHERE id = ?`
+            ).run ( tag, identity.aliasID, record.id );
         }
-
-        const command       = ( tokens.shift () || '' ).toLowerCase ();
-
-        if ( !command ) {
-            message.reply ( `I need a command, an identity address or a magic number.` );
-            return;
-        }
-
-        switch ( command ) {
-
-            case BOT_COMMANDS.IDENTIFY: {
-                await this.identify ( message, tokens [ 0 ]);
-                break;
-            }
-
-            case BOT_COMMANDS.FORGET: {
-                this.setRoles ( message.member );
-                message.reply ( 'OK, I removed all your Gamercert roles.' );
-                break;
-            }
-
-            case BOT_COMMANDS.HELP: {
-                message.reply ( `\`\`\`${ HELP_TEXT }\`\`\`` );
-                break;
-            }
-
-            default: {
-                message.reply ( `I don't recognize that command.` );
-                break;
-            }
+        else {
+            db.prepare (
+                `INSERT INTO members ( guild_id, user_id, tag, fingerprint ) VALUES ( ?, ?, ?, ? )`
+            ).run ( guildID, userID, tag, identity.aliasID );
         }
     }
-
-    //----------------------------------------------------------------//
-    async onReady ( message ) {
-        console.log ( `Logged in as ${ this.client.user.tag }!` );
+    catch ( error ) {
+        console.log ( error );
     }
+}
 
-    //----------------------------------------------------------------//
-    setRoles ( member, addRoles ) {
+//----------------------------------------------------------------//
+async function setRoles ( member, addRoles ) {
 
-        const userRolesByName = {};
+    const userRolesByName = {};
 
-        member.roles.cache.forEach (( role ) => {
-            if ( !ALL_ROLES.includes ( role.name )) {
+    member.roles.cache.forEach (( role ) => {
+        if ( !ALL_ROLES.includes ( role.name )) {
+            userRolesByName [ role.name ] = role;
+        }
+    });
+
+    if ( addRoles && addRoles.length ) {
+        member.guild.roles.cache.forEach (( role ) => {
+            if ( addRoles.includes ( role.name )) {
                 userRolesByName [ role.name ] = role;
             }
         });
-
-        if ( addRoles ) {
-            member.guild.roles.cache.forEach (( role ) => {
-                if ( addRoles.includes ( role.name )) {
-                    userRolesByName [ role.name ] = role;
-                }
-            });
-        }
-
-        member.roles.set ( Object.values ( userRolesByName ));
     }
+
+    await member.roles.set ( Object.values ( userRolesByName ));
 }
 
-const identibot = new Identibot ();
+//----------------------------------------------------------------//
+async function snoop ( interaction ) {
+
+    const user = interaction.options.getUser ( 'user' );
+
+    const guildID = interaction.member.guild.id;
+    const userID = user.id;
+
+    const record = db.prepare ( `SELECT * FROM members WHERE guild_id IS ? AND user_id IS ? LIMIT 1` ).get ( guildID, userID );
+    if ( !record ) {
+        interaction.reply ( `I couldn't find a SURE.social identity for that user.` );
+        return;
+    }
+
+    const info = [];
+
+    info.push ( user.username );
+    info.push ( record.tag );
+    info.push ( record.fingerprint );
+
+    try {
+
+        const url = `${ env.SERVICE_URL }oai?uuid=${ record.fingerprint }`;
+        const result = await ( await fetch ( url )).json ();
+        const identity = result.identity;
+
+        if ( identity ) {
+
+            switch ( identity.status ) {
+
+                case 'INVALID':
+                    info.push ( 'INVALID' );
+                    break;
+
+                case 'REVOKED':
+                    info.push ( 'REVOKED' );
+                    break;
+
+                case 'PRETEND':
+                    info.push ( 'PRETEND' );
+                    break;
+
+                case 'RECOURSE':
+                    info.push ( 'FULL RECOURSE' );
+                    // fall through
+
+                case 'VALID':
+                    info.push ( 'VERIFIED' );
+                    if ( identity.minimumAge && ( identity.minimumAge >= 18 )) {
+                        info.push ( '18+' );
+                    }
+                    break;
+            }
+        }
+    }
+    catch ( error ) {
+        console.log ( error );
+    }
+
+    interaction.reply ( info.join ( '\n' ));
+}

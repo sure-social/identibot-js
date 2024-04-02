@@ -4,3 +4,6 @@
 [submodule "src/packages/vol-common-js-src"]
 	path = src/packages/vol-common-js-src
 	url = git@github.com:cryptogogue/vol-common-js-src.git
+[submodule "src/packages/sure-common-js"]
+	path = src/packages/sure-common-js
+	url = git@github.com:sure-social/sure-common-js.git
