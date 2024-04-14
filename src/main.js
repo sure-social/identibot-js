@@ -95,7 +95,7 @@ async function identify ( interaction ) {
     }
 
     if ( components.username !== username ) {
-        interaction.reply ( `That username didn't match your gloabl Discord username. It should be '${ username }'.` );
+        interaction.reply ( `That username didn't match your global Discord username. It should be '${ username }'.` );
         return;
     }
 
