@@ -5,6 +5,7 @@ process.on ( 'uncaughtException', function ( err ) {
     process.exit ( 1 );
 });
 
+import * as util                    from './util.js';
 import sqlite3                      from 'better-sqlite3';
 import Discord                      from 'discord.js';
 import * as env                     from 'env';
@@ -12,7 +13,6 @@ import fs                           from 'fs';
 import fetch                        from 'cross-fetch';
 import URL                          from 'url';
 import _                            from 'lodash';
-import * as sure                    from 'sure';
 
 const db = new sqlite3 ( env.SQLITE_FILE );
 
@@ -80,9 +80,9 @@ async function identify ( interaction ) {
     const record = db.prepare ( `SELECT * FROM members WHERE guild_id IS ? AND user_id IS ? LIMIT 1` ).get ( guildID, userID );
 
     const tag = interaction.options.getString ( 'tag' );
-    const components = sure.tag.toComponents ( tag )
+    const components = util.toComponents ( tag )
 
-    if ( !sure.tag.isValid ( components )) {
+    if ( !util.isValid ( components )) {
         interaction.reply ( `That doesn't appear to be a valid SURE tag.` );
         return;
     }
@@ -101,7 +101,7 @@ async function identify ( interaction ) {
 
     try {
 
-        const hash = sure.tag.hash ( components );
+        const hash = util.hash ( components );
         const url = `${ env.SERVICE_URL }oai?hash=${ hash }`;
         const result = await ( await fetch ( url )).json ();
         const identity = result.identity;
@@ -145,16 +145,18 @@ async function identify ( interaction ) {
             interaction.reply ( `I found your identity and added the following roles to your server profile: ${ roles.join ( ', ' )}` );
         }
         await setRoles ( interaction.member, roles );
-
-        if ( record ) {
-            db.prepare (
-                `UPDATE members SET tag = ?, fingerprint = ? WHERE id = ?`
-            ).run ( tag, identity.aliasID, record.id );
-        }
-        else {
-            db.prepare (
-                `INSERT INTO members ( guild_id, user_id, tag, fingerprint ) VALUES ( ?, ?, ?, ? )`
-            ).run ( guildID, userID, tag, identity.aliasID );
+        
+        if ( identity.aliasID ) {
+            if ( record ) {
+                db.prepare (
+                    `UPDATE members SET tag = ?, fingerprint = ? WHERE id = ?`
+                ).run ( tag, identity.aliasID, record.id );
+            }
+            else {
+                db.prepare (
+                    `INSERT INTO members ( guild_id, user_id, tag, fingerprint ) VALUES ( ?, ?, ?, ? )`
+                ).run ( guildID, userID, tag, identity.aliasID );
+            }
         }
     }
     catch ( error ) {
